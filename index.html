@@ -710,7 +710,13 @@
                 let w = img.width, h = img.height;
                 if(w>h){ if(w>MAX){ h*=MAX/w; w=MAX; } } else { if(h>MAX){ w*=MAX/h; h=MAX; } }
                 cvs.width = w; cvs.height = h;
-                cvs.getContext('2d').drawImage(img,0,0,w,h);
+                
+                const ctx = cvs.getContext('2d');
+                // 透明部分を白で塗りつぶす
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, w, h);
+                
+                ctx.drawImage(img,0,0,w,h);
                 cb(cvs.toDataURL('image/jpeg', 0.7));
             };
         }
