@@ -37,6 +37,7 @@
         .cat-food { border: 2px solid #EF4444; background: linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%); }
         .cat-play { border: 2px solid #3B82F6; background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%); }
         .cat-feeling { border: 2px solid #8B5CF6; background: linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%); }
+        .cat-color { border: 2px solid #EC4899; background: linear-gradient(135deg, #FDF2F8 0%, #FCE7F3 100%); }
         .cat-other { border: 2px solid #6B7280; background: linear-gradient(135deg, #F9FAFB 0%, #F3F4F6 100%); }
 
         .playing-highlight {
@@ -56,7 +57,7 @@
         }
         @keyframes slideUp { from { transform: translate(-50%, 20px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
 
-        /* グリッドサイズ - より明確な差分 */
+        /* グリッドサイズ */
         .grid-x-small .card-grid { grid-template-columns: repeat(6, 1fr); gap: 8px; }
         .grid-small .card-grid { grid-template-columns: repeat(5, 1fr); gap: 10px; }
         .grid-medium .card-grid { grid-template-columns: repeat(4, 1fr); gap: 12px; }
@@ -70,6 +71,28 @@
             .grid-large .card-grid { grid-template-columns: repeat(2, 1fr); }
             .grid-x-large .card-grid { grid-template-columns: repeat(2, 1fr); }
         }
+
+        /* Canvas描画エリア */
+        #drawCanvas {
+            border: 2px dashed #cbd5e0;
+            cursor: crosshair;
+            touch-action: none;
+        }
+
+        /* 絵文字ピッカー */
+        .emoji-category {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .strip-card {
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .strip-card:hover {
+            transform: scale(0.95);
+            opacity: 0.8;
+        }
     </style>
 </head>
 <body class="h-screen flex flex-col overflow-hidden bg-gray-50">
@@ -80,14 +103,14 @@
                 <button onclick="toggleSettings()" class="text-gray-600 hover:text-blue-600 p-1">
                     <i class="fas fa-bars text-xl"></i>
                 </button>
-                <h1 class="text-lg font-bold text-gray-700">PECS Pro</h1>
+                <h1 id="appTitle" class="text-lg font-bold text-gray-700">PECS Pro</h1>
                 <span id="modeBadge" class="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 font-bold">漢字</span>
             </div>
             <div class="flex gap-2">
                 <button onclick="togglePinFilter()" id="pinFilterBtn" class="text-gray-400 hover:text-yellow-500 p-2 rounded-lg transition-colors">
                     <i class="fas fa-star text-lg"></i>
                 </button>
-                <button onclick="openCardModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition-all active:scale-95">
+                <button onclick="openCardModal()" id="addCardBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition-all active:scale-95">
                     <i class="fas fa-plus"></i> <span class="hidden sm:inline">作る</span>
                 </button>
             </div>
@@ -99,28 +122,28 @@
         <div id="cardGrid" class="card-grid grid"></div>
         <div id="emptyState" class="hidden flex-col items-center justify-center mt-20 text-gray-400">
             <i class="fas fa-box-open text-6xl mb-4"></i>
-            <p class="font-bold">カードがありません</p>
+            <p id="emptyText" class="font-bold">カードがありません</p>
         </div>
     </main>
 
     <footer class="fixed bottom-0 left-0 right-0 bg-white border-t-4 border-blue-200 shadow-xl z-20">
         <div id="sentenceStrip" class="flex items-center p-2 gap-2 bg-gradient-to-r from-yellow-50 to-orange-50 overflow-x-auto hide-scrollbar min-h-[110px] relative">
             <div id="stripPlaceholder" class="absolute inset-0 flex items-center justify-center pointer-events-none text-gray-400 font-bold">
-                <i class="fas fa-hand-pointer mr-2"></i> カードをならべてね
+                <i class="fas fa-hand-pointer mr-2"></i> <span id="stripPlaceholderText">カードをならべてね</span>
             </div>
         </div>
         <div class="grid grid-cols-5 gap-2 p-2 bg-gray-50">
-            <button onclick="popLast()" class="bg-white border-2 border-gray-300 text-gray-600 rounded-lg py-2 flex flex-col items-center active:bg-gray-100 transition-colors">
+            <button onclick="popLast()" id="popBtn" class="bg-white border-2 border-gray-300 text-gray-600 rounded-lg py-2 flex flex-col items-center active:bg-gray-100 transition-colors">
                 <i class="fas fa-backspace text-lg"></i>
                 <span class="text-[10px] font-bold mt-1">1つ消す</span>
             </button>
-            <button onclick="clearAll()" class="bg-red-50 border-2 border-red-200 text-red-600 rounded-lg py-2 flex flex-col items-center active:bg-red-100 transition-colors">
+            <button onclick="clearAll()" id="clearBtn" class="bg-red-50 border-2 border-red-200 text-red-600 rounded-lg py-2 flex flex-col items-center active:bg-red-100 transition-colors">
                 <i class="fas fa-trash-alt text-lg"></i>
                 <span class="text-[10px] font-bold mt-1">全消し</span>
             </button>
             <button onclick="playSentence()" id="playBtn" class="col-span-3 bg-blue-600 text-white rounded-lg py-2 shadow-md flex items-center justify-center gap-2 active:bg-blue-700 active:scale-95 transition-all">
                 <i class="fas fa-volume-up text-2xl"></i>
-                <span class="text-lg font-bold">おはなし</span>
+                <span id="playBtnText" class="text-lg font-bold">おはなし</span>
             </button>
         </div>
     </footer>
@@ -129,7 +152,7 @@
     <div id="settingsPanel" class="fixed inset-0 bg-black/60 hidden z-50 flex items-end sm:items-center justify-center" onclick="if(event.target===this) toggleSettings()">
         <div class="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom duration-300">
             <div class="bg-gradient-to-r from-blue-600 to-blue-500 p-4 text-white flex justify-between items-center">
-                <span class="font-bold text-lg"><i class="fas fa-cog mr-2"></i>設定</span>
+                <span id="settingsTitle" class="font-bold text-lg"><i class="fas fa-cog mr-2"></i>設定</span>
                 <button onclick="toggleSettings()" class="w-8 h-8 hover:bg-white/20 rounded-full flex items-center justify-center transition-colors">
                     <i class="fas fa-times text-xl"></i>
                 </button>
@@ -137,20 +160,20 @@
             <div class="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
                 <!-- 表示モード -->
                 <div>
-                    <label class="text-xs font-bold text-gray-600 mb-2 block">表示モード</label>
+                    <label id="modeLabel" class="text-xs font-bold text-gray-600 mb-2 block">表示モード</label>
                     <div class="grid grid-cols-2 gap-2">
                         <button id="modeChildBtn" onclick="setMode('child')" class="py-2 rounded-lg text-sm font-bold border-2 transition-all">
-                            <i class="fas fa-child mr-1"></i>ひらがな
+                            <i class="fas fa-child mr-1"></i><span id="modeChildText">ひらがな</span>
                         </button>
                         <button id="modeAdultBtn" onclick="setMode('adult')" class="py-2 rounded-lg text-sm font-bold border-2 transition-all">
-                            <i class="fas fa-user mr-1"></i>漢字
+                            <i class="fas fa-user mr-1"></i><span id="modeAdultText">漢字</span>
                         </button>
                     </div>
                 </div>
 
                 <!-- カードサイズ -->
                 <div>
-                    <label class="text-xs font-bold text-gray-600 mb-2 block">カードサイズ</label>
+                    <label id="sizeLabel" class="text-xs font-bold text-gray-600 mb-2 block">カードサイズ</label>
                     <div class="flex gap-2">
                         <button onclick="setGridSize('x-small')" id="sizeXS" class="flex-1 py-2 rounded text-xs font-bold border transition-all">極小</button>
                         <button onclick="setGridSize('small')" id="sizeS" class="flex-1 py-2 rounded text-xs font-bold border transition-all">小</button>
@@ -162,679 +185,858 @@
 
                 <!-- 並び順 -->
                 <div>
-                    <label class="text-xs font-bold text-gray-600 mb-2 block">並び順</label>
+                    <label id="sortLabel" class="text-xs font-bold text-gray-600 mb-2 block">並び順</label>
                     <select id="sortSelect" onchange="setSort(this.value)" class="w-full p-2 border rounded bg-white text-sm">
                         <option value="default">デフォルト（ピン優先→新しい順）</option>
-                        <option value="aiueo">五十音順</option>
-                        <option value="category">カテゴリ順</option>
-                        <option value="frequency">使用頻度順</option>
+                        <option value="name-asc">名前順（あいうえお）</option>
+                        <option value="name-desc">名前順（逆順）</option>
+                        <option value="category">カテゴリごと</option>
+                        <option value="usage">使用頻度順</option>
                     </select>
                 </div>
 
                 <!-- データ管理 -->
-                <div class="pt-2 border-t space-y-2">
-                    <button onclick="exportData()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded transition-colors">
-                        <i class="fas fa-download mr-2"></i>データをエクスポート
-                    </button>
-                    <button onclick="importData()" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 rounded transition-colors">
-                        <i class="fas fa-upload mr-2"></i>データをインポート
-                    </button>
-                    <button onclick="resetData()" class="w-full bg-red-100 hover:bg-red-200 text-red-600 font-bold py-2 rounded border border-red-200 transition-colors">
-                        <i class="fas fa-redo mr-2"></i>初期化（全削除）
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- カード編集モーダル -->
-    <div id="cardModal" class="fixed inset-0 bg-black/60 hidden z-50 flex items-center justify-center p-4" onclick="if(event.target===this) closeModal()">
-        <div class="bg-white w-full max-w-md rounded-2xl overflow-hidden shadow-2xl">
-            <div class="bg-blue-600 p-4 text-white flex justify-between items-center">
-                <span class="font-bold" id="modalTitle">新しいカード</span>
-                <button onclick="closeModal()" class="w-8 h-8 hover:bg-white/20 rounded-full flex items-center justify-center">
-                    <i class="fas fa-times text-xl"></i>
-                </button>
-            </div>
-            <div class="p-4 space-y-3 max-h-[70vh] overflow-y-auto">
-                <div class="relative w-full h-40 border-2 border-dashed border-gray-300 rounded-xl overflow-hidden bg-gray-50">
-                    <input type="file" id="imgInput" accept="image/*" class="absolute inset-0 opacity-0 z-10 cursor-pointer" onchange="handleImage(this)">
-                    <div id="previewArea" class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-gray-400">
-                        <i class="fas fa-camera text-4xl mb-2"></i>
-                        <span class="text-xs font-bold">タップして写真を選択</span>
+                <div>
+                    <label id="dataLabel" class="text-xs font-bold text-gray-600 mb-2 block">データ管理</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="openExportModal()" id="exportBtn" class="py-2 px-3 bg-green-50 border border-green-300 text-green-700 rounded-lg text-sm font-bold hover:bg-green-100 transition-colors">
+                            <i class="fas fa-download mr-1"></i>エクスポート
+                        </button>
+                        <button onclick="importData()" id="importBtn" class="py-2 px-3 bg-blue-50 border border-blue-300 text-blue-700 rounded-lg text-sm font-bold hover:bg-blue-100 transition-colors">
+                            <i class="fas fa-upload mr-1"></i>インポート
+                        </button>
                     </div>
-                    <img id="previewImg" class="absolute inset-0 w-full h-full object-contain bg-white hidden">
+                    <button onclick="resetData()" id="resetBtn" class="w-full mt-2 py-2 bg-red-50 border border-red-300 text-red-600 rounded-lg text-sm font-bold hover:bg-red-100 transition-colors">
+                        <i class="fas fa-trash mr-1"></i>データ初期化
+                    </button>
                 </div>
 
-                <div>
-                    <label class="text-xs font-bold text-gray-600">カード名（漢字モード用）<span class="text-red-500">*</span></label>
-                    <input type="text" id="inputLabel" class="w-full p-2 border rounded mt-1 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-200 outline-none" placeholder="例: お風呂に入りたい">
-                </div>
-                <div>
-                    <label class="text-xs font-bold text-gray-600">よみがな（ひらがなモード・音声用）</label>
-                    <input type="text" id="inputTalk" class="w-full p-2 border rounded mt-1 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-200 outline-none" placeholder="例: おふろにはいりたい">
-                    <p class="text-[10px] text-gray-400 mt-1">※空欄の場合はカード名を使用</p>
-                </div>
-                <div>
-                    <label class="text-xs font-bold text-gray-600">カテゴリ</label>
-                    <select id="inputCat" class="w-full p-2 border rounded mt-1 bg-white"></select>
-                </div>
-                <div class="flex items-center gap-2 pt-1">
-                    <input type="checkbox" id="inputPin" class="w-4 h-4 text-blue-600 rounded">
-                    <label for="inputPin" class="text-sm font-bold text-gray-700">
-                        <i class="fas fa-star text-yellow-500"></i> お気に入り（ピン留め）
-                    </label>
+                <!-- Buy Me a Coffee（漢字モード時のみ表示） -->
+                <div id="coffeeSection" class="hidden">
+                    <label class="text-xs font-bold text-gray-600 mb-2 block">サポート</label>
+                    <a href="https://buymeacoffee.com/yoshida" target="_blank" class="block w-full py-3 bg-yellow-50 border-2 border-yellow-400 text-yellow-800 rounded-lg text-sm font-bold hover:bg-yellow-100 transition-colors text-center">
+                        <i class="fas fa-coffee mr-2"></i>開発者にコーヒーを奢る
+                    </a>
                 </div>
             </div>
-            <div class="p-3 bg-gray-50 border-t flex gap-2">
-                <button id="delBtn" onclick="deleteCard()" class="px-3 py-2 text-red-600 bg-white border border-red-200 rounded hover:bg-red-50 transition-colors hidden">
-                    <i class="fas fa-trash-alt"></i>
+        </div>
+    </div>
+
+    <!-- カード作成/編集モーダル -->
+    <div id="cardModal" class="fixed inset-0 bg-black/60 hidden z-50 flex items-end sm:items-center justify-center" onclick="if(event.target===this) closeCardModal()">
+        <div class="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl overflow-hidden shadow-2xl max-h-[85vh] flex flex-col">
+            <div class="bg-gradient-to-r from-blue-600 to-blue-500 p-4 text-white flex justify-between items-center flex-none">
+                <span id="modalTitle" class="font-bold text-lg"><i class="fas fa-plus-circle mr-2"></i>カードを作る</span>
+                <button onclick="closeCardModal()" class="w-8 h-8 hover:bg-white/20 rounded-full flex items-center justify-center transition-colors">
+                    <i class="fas fa-times text-xl"></i>
                 </button>
-                <button onclick="saveCard()" class="flex-1 bg-blue-600 text-white font-bold py-2 rounded hover:bg-blue-700 shadow-sm transition-colors">
-                    保存
+            </div>
+            <div class="p-4 space-y-3 overflow-y-auto flex-1">
+                <input type="hidden" id="editCardId">
+                
+                <!-- 画像選択 -->
+                <div>
+                    <label id="imageLabel" class="text-xs font-bold text-gray-600 mb-2 block">絵・画像</label>
+                    <div class="flex gap-2 mb-2">
+                        <button onclick="selectImageType('emoji')" id="imageTypeEmoji" class="flex-1 py-2 px-3 border-2 rounded-lg text-sm font-bold transition-all">
+                            😊 <span id="emojiText">絵文字</span>
+                        </button>
+                        <button onclick="selectImageType('file')" id="imageTypeFile" class="flex-1 py-2 px-3 border-2 rounded-lg text-sm font-bold transition-all">
+                            📷 <span id="fileText">写真</span>
+                        </button>
+                        <button onclick="selectImageType('canvas')" id="imageTypeCanvas" class="flex-1 py-2 px-3 border-2 rounded-lg text-sm font-bold transition-all">
+                            🎨 <span id="canvasText">描く</span>
+                        </button>
+                    </div>
+                    
+                    <!-- 絵文字選択 -->
+                    <div id="emojiPicker" class="hidden">
+                        <input type="text" id="emojiInput" placeholder="絵文字を選択..." class="w-full p-3 border rounded-lg text-4xl text-center mb-2" readonly>
+                        
+                        <!-- カテゴリタブ -->
+                        <div class="flex gap-1 mb-2 overflow-x-auto hide-scrollbar">
+                            <button onclick="showEmojiCategory('smileys')" class="emoji-cat-btn px-3 py-1 text-lg rounded bg-blue-100">😊</button>
+                            <button onclick="showEmojiCategory('animals')" class="emoji-cat-btn px-3 py-1 text-lg rounded">🐶</button>
+                            <button onclick="showEmojiCategory('food')" class="emoji-cat-btn px-3 py-1 text-lg rounded">🍎</button>
+                            <button onclick="showEmojiCategory('activities')" class="emoji-cat-btn px-3 py-1 text-lg rounded">⚽</button>
+                            <button onclick="showEmojiCategory('travel')" class="emoji-cat-btn px-3 py-1 text-lg rounded">🚗</button>
+                            <button onclick="showEmojiCategory('objects')" class="emoji-cat-btn px-3 py-1 text-lg rounded">💡</button>
+                            <button onclick="showEmojiCategory('symbols')" class="emoji-cat-btn px-3 py-1 text-lg rounded">❤️</button>
+                        </div>
+
+                        <!-- 絵文字グリッド -->
+                        <div id="emojiGrid" class="grid grid-cols-8 gap-1 emoji-category"></div>
+                    </div>
+                    
+                    <!-- ファイル選択 -->
+                    <div id="filePicker" class="hidden">
+                        <input type="file" id="imageFileInput" accept="image/*" onchange="handleImageFile(this)" class="w-full p-2 border rounded-lg text-sm">
+                        <div id="imagePreview" class="mt-2 hidden">
+                            <img id="previewImg" class="w-full h-32 object-contain border rounded-lg bg-gray-50">
+                        </div>
+                    </div>
+                    
+                    <!-- Canvas描画 -->
+                    <div id="canvasPicker" class="hidden">
+                        <div class="mb-2 flex gap-2">
+                            <input type="color" id="drawColor" value="#000000" class="w-12 h-8 border rounded cursor-pointer">
+                            <input type="range" id="drawWidth" min="1" max="20" value="3" class="flex-1">
+                            <button onclick="clearCanvas()" class="px-3 py-1 bg-gray-200 rounded text-sm font-bold">クリア</button>
+                        </div>
+                        <canvas id="drawCanvas" width="300" height="200" class="w-full bg-white rounded-lg"></canvas>
+                    </div>
+                </div>
+
+                <!-- 漢字 -->
+                <div>
+                    <label id="kanjiLabel" class="text-xs font-bold text-gray-600 mb-1 block">漢字</label>
+                    <input type="text" id="kanjiInput" placeholder="例: トイレ" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500" oninput="autoConvertToHiragana(this.value)">
+                </div>
+
+                <!-- ひらがな -->
+                <div>
+                    <label id="hiraganaLabel" class="text-xs font-bold text-gray-600 mb-1 block">ひらがな</label>
+                    <input type="text" id="hiraganaInput" placeholder="例: といれ" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <!-- 読み上げ -->
+                <div>
+                    <label id="talkLabel" class="text-xs font-bold text-gray-600 mb-1 block">読み上げ（省略可）</label>
+                    <input type="text" id="talkInput" placeholder="省略時は漢字が読まれます" class="w-full p-3 border rounded-lg">
+                </div>
+
+                <!-- カテゴリ -->
+                <div>
+                    <label id="categoryLabel" class="text-xs font-bold text-gray-600 mb-1 block">カテゴリ</label>
+                    <select id="categorySelect" class="w-full p-3 border rounded-lg bg-white"></select>
+                </div>
+
+                <!-- 保存ボタン -->
+                <button onclick="saveCard()" id="saveCardBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-bold text-lg shadow-md active:scale-95 transition-all">
+                    <i class="fas fa-save mr-2"></i>保存
                 </button>
             </div>
         </div>
     </div>
 
-    <!-- エクスポート設定モーダル -->
-    <div id="exportModal" class="fixed inset-0 bg-black/60 hidden z-50 flex items-center justify-center p-4" onclick="if(event.target===this) closeExportModal()">
-        <div class="bg-white w-full max-w-md rounded-2xl overflow-hidden shadow-2xl">
-            <div class="bg-green-600 p-4 text-white flex justify-between items-center">
-                <span class="font-bold"><i class="fas fa-download mr-2"></i>エクスポート設定</span>
-                <button onclick="closeExportModal()" class="w-8 h-8 hover:bg-white/20 rounded-full flex items-center justify-center">
-                    <i class="fas fa-times text-xl"></i>
+    <!-- エクスポートモーダル -->
+    <div id="exportModal" class="fixed inset-0 bg-black/60 hidden z-50 flex items-center justify-center" onclick="if(event.target===this) closeExportModal()">
+        <div class="bg-white w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl m-4">
+            <div class="bg-gradient-to-r from-green-600 to-green-500 p-4 text-white flex justify-between items-center">
+                <span id="exportTitle" class="font-bold"><i class="fas fa-download mr-2"></i>エクスポート</span>
+                <button onclick="closeExportModal()" class="w-8 h-8 hover:bg-white/20 rounded-full flex items-center justify-center transition-colors">
+                    <i class="fas fa-times"></i>
                 </button>
             </div>
             <div class="p-4 space-y-3">
-                <div>
-                    <label class="text-sm font-bold text-gray-700 mb-2 block">エクスポート対象を選択</label>
-                    <div class="space-y-2">
-                        <label class="flex items-center gap-2 p-2 border rounded hover:bg-gray-50 cursor-pointer">
-                            <input type="radio" name="exportType" value="all" checked class="w-4 h-4">
-                            <span class="text-sm font-bold">すべてのカード</span>
-                        </label>
-                        <label class="flex items-center gap-2 p-2 border rounded hover:bg-gray-50 cursor-pointer">
-                            <input type="radio" name="exportType" value="custom" class="w-4 h-4">
-                            <span class="text-sm font-bold">自作カードのみ</span>
-                        </label>
-                        <label class="flex items-center gap-2 p-2 border rounded hover:bg-gray-50 cursor-pointer">
-                            <input type="radio" name="exportType" value="default" class="w-4 h-4">
-                            <span class="text-sm font-bold">デフォルトカードのみ</span>
-                        </label>
-                        <label class="flex items-center gap-2 p-2 border rounded hover:bg-gray-50 cursor-pointer">
-                            <input type="radio" name="exportType" value="pinned" class="w-4 h-4">
-                            <span class="text-sm font-bold">お気に入りのみ</span>
-                        </label>
-                        <label class="flex items-center gap-2 p-2 border rounded hover:bg-gray-50 cursor-pointer">
-                            <input type="radio" name="exportType" value="category" class="w-4 h-4">
-                            <span class="text-sm font-bold">選択したカテゴリのみ</span>
-                        </label>
-                    </div>
-                </div>
-                <div id="categorySelectArea" class="hidden">
-                    <label class="text-sm font-bold text-gray-700 mb-2 block">カテゴリを選択</label>
-                    <select id="exportCategorySelect" class="w-full p-2 border rounded bg-white"></select>
-                </div>
-            </div>
-            <div class="p-3 bg-gray-50 border-t">
-                <button onclick="executeExport()" class="w-full bg-green-600 text-white font-bold py-2 rounded hover:bg-green-700 shadow-sm transition-colors">
-                    <i class="fas fa-download mr-2"></i>ダウンロード
+                <button onclick="exportCards('all')" id="exportAllBtn" class="w-full py-3 bg-green-50 border border-green-300 text-green-700 rounded-lg font-bold hover:bg-green-100 transition-colors">
+                    <i class="fas fa-globe mr-2"></i>すべてのカード
                 </button>
+                <button onclick="exportCards('pinned')" id="exportPinnedBtn" class="w-full py-3 bg-yellow-50 border border-yellow-300 text-yellow-700 rounded-lg font-bold hover:bg-yellow-100 transition-colors">
+                    <i class="fas fa-star mr-2"></i>ピン留めのみ
+                </button>
+                <div>
+                    <select id="exportCategorySelect" class="w-full p-3 border rounded-lg bg-white mb-2"></select>
+                    <button onclick="exportCards('category')" id="exportCategoryBtn" class="w-full py-3 bg-blue-50 border border-blue-300 text-blue-700 rounded-lg font-bold hover:bg-blue-100 transition-colors">
+                        <i class="fas fa-folder mr-2"></i>選択カテゴリ
+                    </button>
+                </div>
             </div>
         </div>
     </div>
 
+    <input type="file" id="importFileInput" accept=".json" onchange="handleImport(this)" class="hidden">
     <div id="toastArea"></div>
-    <input type="file" id="importFileInput" accept=".json" class="hidden" onchange="handleImport(this)">
 
     <script>
-        // --- 設定 ---
-        const DB_KEY = 'pecs_pro_v6';
-        const CONFIG_KEY = 'pecs_config_v2';
-        
-        let config = {
-            mode: 'adult',
-            gridSize: 'medium',
-            sort: 'default'
-        };
-
+        const DB_KEY = 'pecsData_v3';
         let cards = [];
-        let categories = [];
+        let categories = [
+            {id: 'require', name: '必要', nameChild: 'ひつよう', emoji: '⭐', color: 'cat-require'},
+            {id: 'life', name: '生活', nameChild: 'せいかつ', emoji: '🏠', color: 'cat-life'},
+            {id: 'food', name: '食事', nameChild: 'しょくじ', emoji: '🍎', color: 'cat-food'},
+            {id: 'play', name: '遊び', nameChild: 'あそび', emoji: '⚽', color: 'cat-play'},
+            {id: 'feeling', name: '気持ち', nameChild: 'きもち', emoji: '😊', color: 'cat-feeling'},
+            {id: 'color', name: '色', nameChild: 'いろ', emoji: '🎨', color: 'cat-color'},
+            {id: 'other', name: 'その他', nameChild: 'そのた', emoji: '📦', color: 'cat-other'}
+        ];
+        
         let sentenceStrip = [];
         let currentFilter = 'all';
-        let isPinFilter = false;
-        let editingId = null;
-        let tempImg = null;
+        let currentSort = 'default';
+        let currentMode = 'adult';
+        let currentGridSize = 'medium';
+        let pinFilterActive = false;
         let isSpeaking = false;
+        let currentImageType = 'emoji';
+        let canvasData = null;
 
-        // --- 初期化 ---
-        window.addEventListener('DOMContentLoaded', () => {
-            loadConfig();
-            loadData();
-            applyConfig();
-            initSpeech();
-            refreshUI();
-            
-            // エクスポートタイプの変更監視
-            document.querySelectorAll('input[name="exportType"]').forEach(radio => {
-                radio.addEventListener('change', (e) => {
-                    const catArea = document.getElementById('categorySelectArea');
-                    if(e.target.value === 'category') {
-                        catArea.classList.remove('hidden');
-                        renderExportCategorySelect();
-                    } else {
-                        catArea.classList.add('hidden');
-                    }
-                });
-            });
-        });
+        // Canvas描画関連
+        let canvas, ctx, isDrawing = false;
 
-        function loadConfig() {
-            const saved = localStorage.getItem(CONFIG_KEY);
-            if(saved) config = {...config, ...JSON.parse(saved)};
+        // 絵文字データベース
+        const emojiDatabase = {
+            smileys: ['😀','😃','😄','😁','😆','😅','🤣','😂','🙂','🙃','😉','😊','😇','🥰','😍','🤩','😘','😗','☺️','😚','😙','🥲','😋','😛','😜','🤪','😝','🤑','🤗','🤭','🤫','🤔','🤐','🤨','😐','😑','😶','😏','😒','🙄','😬','🤥','😌','😔','😪','🤤','😴','😷','🤒','🤕','🤢','🤮','🤧','🥵','🥶','🥴','😵','🤯','🤠','🥳','😎','🤓','🧐','😕','😟','🙁','☹️','😮','😯','😲','😳','🥺','😦','😧','😨','😰','😥','😢','😭','😱','😖','😣','😞','😓','😩','😫','🥱','😤','😡','😠','🤬','😈','👿','💀','☠️','💩','🤡','👹','👺','👻','👽','👾','🤖'],
+            animals: ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐽','🐸','🐵','🙈','🙉','🙊','🐒','🐔','🐧','🐦','🐤','🐣','🐥','🦆','🦅','🦉','🦇','🐺','🐗','🐴','🦄','🐝','🐛','🦋','🐌','🐞','🐜','🦟','🦗','🕷️','🕸️','🦂','🐢','🐍','🦎','🦖','🦕','🐙','🦑','🦐','🦞','🦀','🐡','🐠','🐟','🐬','🐳','🐋','🦈','🐊','🐅','🐆','🦓','🦍','🦧','🐘','🦛','🦏','🐪','🐫','🦒','🦘','🐃','🐂','🐄','🐎','🐖','🐏','🐑','🦙','🐐','🦌','🐕','🐩','🦮','🐕‍🦺','🐈','🐓','🦃','🦚','🦜','🦢','🦩','🕊️','🐇','🦝','🦨','🦡','🦦','🦥','🐁','🐀','🐿️','🦔'],
+            food: ['🍏','🍎','🍐','🍊','🍋','🍌','🍉','🍇','🍓','🍈','🍒','🍑','🥭','🍍','🥥','🥝','🍅','🍆','🥑','🥦','🥬','🥒','🌶️','🌽','🥕','🫑','🥗','🥔','🍠','🥐','🥯','🍞','🥖','🥨','🧀','🥚','🍳','🧈','🥞','🧇','🥓','🥩','🍗','🍖','🦴','🌭','🍔','🍟','🍕','🫓','🥪','🥙','🧆','🌮','🌯','🫔','🥗','🥘','🫕','🥫','🍝','🍜','🍲','🍛','🍣','🍱','🥟','🦪','🍤','🍙','🍚','🍘','🍥','🥠','🥮','🍢','🍡','🍧','🍨','🍦','🥧','🧁','🍰','🎂','🍮','🍭','🍬','🍫','🍿','🍩','🍪','🌰','🥜','🍯','🥛','🍼','☕','🍵','🧃','🥤','🧋','🍶','🍺','🍻','🥂','🍷','🥃','🍸','🍹','🧉','🍾','🧊'],
+            activities: ['⚽','🏀','🏈','⚾','🥎','🎾','🏐','🏉','🥏','🎱','🪀','🏓','🏸','🏒','🏑','🥍','🏏','🥅','⛳','🪁','🏹','🎣','🤿','🥊','🥋','🎽','🛹','🛼','🛷','⛸️','🥌','🎿','⛷️','🏂','🪂','🏋️','🤼','🤸','🤺','🤾','🏌️','🏇','🧘','🏄','🏊','🤽','🚣','🧗','🚵','🚴','🏆','🥇','🥈','🥉','🏅','🎖️','🏵️','🎗️','🎫','🎟️','🎪','🤹','🎭','🩰','🎨','🎬','🎤','🎧','🎼','🎹','🥁','🪘','🎷','🎺','🪗','🎸','🪕','🎻','🎲','♟️','🎯','🎳','🎮','🎰','🧩'],
+            travel: ['🚗','🚕','🚙','🚌','🚎','🏎️','🚓','🚑','🚒','🚐','🛻','🚚','🚛','🚜','🦯','🦽','🦼','🛴','🚲','🛵','🏍️','🛺','🚨','🚔','🚍','🚘','🚖','🚡','🚠','🚟','🚃','🚋','🚞','🚝','🚄','🚅','🚈','🚂','🚆','🚇','🚊','🚉','✈️','🛫','🛬','🪂','💺','🚁','🛩️','🛰️','🚀','🛸','🚢','⛵','🛶','🚤','🛳️','⛴️','🛥️','🚧','⛽','🚏','🗺️','🗿','🗽','🗼','🏰','🏯','🏟️','🎡','🎢','🎠','⛲','⛱️','🏖️','🏝️','🏜️','🌋','⛰️','🏔️','🗻','🏕️','⛺','🛖','🏠','🏡','🏘️','🏚️','🏗️','🏭','🏢','🏬','🏣','🏤','🏥','🏦','🏨','🏪','🏫','🏩','💒','🏛️','⛪','🕌','🕍','🛕','🕋'],
+            objects: ['⌚','📱','📲','💻','⌨️','🖥️','🖨️','🖱️','🖲️','🕹️','🗜️','💾','💿','📀','📼','📷','📸','📹','🎥','📽️','🎞️','📞','☎️','📟','📠','📺','📻','🎙️','🎚️','🎛️','🧭','⏱️','⏲️','⏰','🕰️','⌛','⏳','📡','🔋','🔌','💡','🔦','🕯️','🪔','🧯','🛢️','💸','💵','💴','💶','💷','🪙','💰','💳','💎','⚖️','🪜','🧰','🪛','🔧','🔨','⚒️','🛠️','⛏️','🪚','🔩','⚙️','🪤','🧱','⛓️','🧲','🔫','💣','🧨','🪓','🔪','🗡️','⚔️','🛡️','🚬','⚰️','🪦','⚱️','🏺','🔮','📿','🧿','💈','⚗️','🔭','🔬','🕳️','🩹','🩺','💊','💉','🩸','🧬','🦠','🧫','🧪','🌡️','🧹','🪠','🧺','🧻','🚽','🚰','🚿','🛁','🛀','🧼','🪒','🧽','🧴','🛎️','🔑','🗝️','🚪','🪑','🛋️','🛏️','🛌','🧸','🪆','🖼️','🪞','🪟','🛍️','🎁','🎈','🎏','🎀','🪄','🪅','🎊','🎉','🎎','🏮','🎐','🧧','✉️','📩','📨','📧','💌','📥','📤','📦','🏷️','🪧','📪','📬','📭','📮','📯','📜','📃','📄','📑','🧾','📊','📈','📉','🗒️','🗓️','📆','📅','🗑️','📇','🗃️','🗳️','🗄️','📋','📁','📂','🗂️','🗞️','📰','📓','📔','📒','📕','📗','📘','📙','📚','📖','🔖','🧷','🔗','📎','🖇️','📐','📏','🧮','📌','📍','✂️','🖊️','🖋️','✒️','🖌️','🖍️','📝','✏️','🔍','🔎','🔏','🔐','🔒','🔓'],
+            symbols: ['❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❣️','💕','💞','💓','💗','💖','💘','💝','💟','☮️','✝️','☪️','🕉️','☸️','✡️','🔯','🕎','☯️','☦️','🛐','⛎','♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓','🆔','⚛️','🉑','☢️','☣️','📴','📳','🈶','🈚','🈸','🈺','🈷️','✴️','🆚','💮','🉐','㊙️','㊗️','🈴','🈵','🈹','🈲','🅰️','🅱️','🆎','🆑','🅾️','🆘','❌','⭕','🛑','⛔','📛','🚫','💯','💢','♨️','🚷','🚯','🚳','🚱','🔞','📵','🚭','❗','❕','❓','❔','‼️','⁉️','🔅','🔆','〽️','⚠️','🚸','🔱','⚜️','🔰','♻️','✅','🈯','💹','❇️','✳️','❎','🌐','💠','Ⓜ️','🌀','💤','🏧','🚾','♿','🅿️','🛗','🈳','🈂️','🛂','🛃','🛄','🛅','🚹','🚺','🚼','⚧️','🚻','🚮','🎦','📶','🈁','🔣','ℹ️','🔤','🔡','🔠','🆖','🆗','🆙','🆒','🆕','🆓','0️⃣','1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟','🔢','#️⃣','*️⃣','⏏️','▶️','⏸️','⏯️','⏹️','⏺️','⏭️','⏮️','⏩','⏪','⏫','⏬','◀️','🔼','🔽','➡️','⬅️','⬆️','⬇️','↗️','↘️','↙️','↖️','↕️','↔️','↪️','↩️','⤴️','⤵️','🔀','🔁','🔂','🔄','🔃','🎵','🎶','➕','➖','➗','✖️','♾️','💲','💱','™️','©️','®️','〰️','➰','➿','🔚','🔙','🔛','🔝','🔜','✔️','☑️','🔘','🔴','🟠','🟡','🟢','🔵','🟣','⚫','⚪','🟤','🔺','🔻','🔸','🔹','🔶','🔷','🔳','🔲','▪️','▫️','◾','◽','◼️','◻️','🟥','🟧','🟨','🟩','🟦','🟪','⬛','⬜','🟫','🔈','🔇','🔉','🔊','🔔','🔕','📣','📢','💬','💭','🗯️','♠️','♣️','♥️','♦️','🃏','🎴','🀄','🕐','🕑','🕒','🕓','🕔','🕕','🕖','🕗','🕘','🕙','🕚','🕛','🕜','🕝','🕞','🕟','🕠','🕡','🕢','🕣','🕤','🕥','🕦','🕧']
+        };
+
+        let currentEmojiCategory = 'smileys';
+
+        function initCanvas() {
+            canvas = document.getElementById('drawCanvas');
+            ctx = canvas.getContext('2d');
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            canvas.addEventListener('mousedown', startDraw);
+            canvas.addEventListener('mousemove', draw);
+            canvas.addEventListener('mouseup', stopDraw);
+            canvas.addEventListener('mouseleave', stopDraw);
+
+            canvas.addEventListener('touchstart', e => { e.preventDefault(); startDraw(e.touches[0]); });
+            canvas.addEventListener('touchmove', e => { e.preventDefault(); draw(e.touches[0]); });
+            canvas.addEventListener('touchend', stopDraw);
         }
 
-        function saveConfig() {
-            localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
+        function startDraw(e) {
+            isDrawing = true;
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+            const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+            const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+            ctx.strokeStyle = document.getElementById('drawColor').value;
+            ctx.lineWidth = document.getElementById('drawWidth').value;
+            ctx.lineTo(x, y);
+            ctx.stroke();
+        }
+
+        function stopDraw() {
+            isDrawing = false;
+        }
+
+        function clearCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function showEmojiCategory(category) {
+            currentEmojiCategory = category;
+            const grid = document.getElementById('emojiGrid');
+            const emojis = emojiDatabase[category] || [];
+            
+            grid.innerHTML = emojis.map(emoji => 
+                `<button type="button" onclick="setEmoji('${emoji}')" class="text-2xl p-2 hover:bg-gray-100 rounded transition-colors">${emoji}</button>`
+            ).join('');
+
+            // カテゴリボタンのハイライト
+            document.querySelectorAll('.emoji-cat-btn').forEach(btn => {
+                btn.classList.remove('bg-blue-100');
+            });
+            event.target.classList.add('bg-blue-100');
+        }
+
+        // 初期化
+        function init() {
+            initCanvas();
+            loadData();
+            addDefaultCards();
+            updateModeUI();
+            renderCategoryBar();
+            renderCards();
+            updateSortUI();
+            updateGridSizeUI();
+            showEmojiCategory('smileys'); // デフォルトの絵文字カテゴリを表示
         }
 
         function loadData() {
-            const raw = localStorage.getItem(DB_KEY);
-            if(raw) {
-                const data = JSON.parse(raw);
+            const saved = localStorage.getItem(DB_KEY);
+            if(saved) {
+                const data = JSON.parse(saved);
                 cards = data.cards || [];
-                categories = data.categories || [];
-            } else {
-                initDefaults();
+                if(data.categories) categories = data.categories;
+                currentMode = data.mode || 'adult';
+                currentGridSize = data.gridSize || 'medium';
+                currentSort = data.sort || 'default';
             }
-            if(categories.length === 0) initDefaults();
         }
 
         function saveData() {
-            try {
-                localStorage.setItem(DB_KEY, JSON.stringify({cards, categories}));
-            } catch(e) {
-                showToast('⚠️ 保存失敗（容量オーバー）');
-            }
+            localStorage.setItem(DB_KEY, JSON.stringify({
+                cards, categories, mode: currentMode, gridSize: currentGridSize, sort: currentSort
+            }));
         }
 
-        // --- デフォルトデータ ---
-        function initDefaults() {
-            categories = [
-                {id: 'require', label: 'おねがい', color: 'cat-require'},
-                {id: 'life', label: 'せいかつ', color: 'cat-life'},
-                {id: 'food', label: 'たべもの', color: 'cat-food'},
-                {id: 'play', label: 'あそび', color: 'cat-play'},
-                {id: 'feeling', label: 'きもち', color: 'cat-feeling'},
-                {id: 'other', label: 'そのほか', color: 'cat-other'}
-            ];
+        function addDefaultCards() {
+            if(cards.length > 0) return;
 
             const defaults = [
-                // おねがい（完結形）
-                {l:'〜ください', t:'ください', c:'require', i:'🤲', bg:'#FFFBEB', pin:true},
-                {l:'手伝ってください', t:'てつだってください', c:'require', i:'🤝', bg:'#FFFBEB', pin:true},
-                {l:'おしまい', t:'おしまいです', c:'require', i:'🙅', bg:'#FFFBEB'},
-                {l:'もう一回', t:'もういっかい', c:'require', i:'🔄', bg:'#FFFBEB'},
-                {l:'待って', t:'まってください', c:'require', i:'✋', bg:'#FFFBEB'},
-                {l:'見せて', t:'みせて', c:'require', i:'👀', bg:'#FFFBEB'},
+                // 必要カテゴリ
+                {kanji: 'トイレ', hiragana: 'といれ', talk: 'トイレに行きたいです', emoji: '🚽', category: 'require'},
+                {kanji: '飲む', hiragana: 'のむ', talk: '飲み物が欲しいです', emoji: '💧', category: 'require'},
+                {kanji: '休む', hiragana: 'やすむ', talk: '休みたいです', emoji: '😴', category: 'require'},
+                {kanji: '助けて', hiragana: 'たすけて', talk: '助けてください', emoji: '🆘', category: 'require'},
                 
-                // せいかつ（1枚完結）
-                {l:'トイレに行きたい', t:'といれにいきたいです', c:'life', i:'🚽', bg:'#ECFDF5', pin:true},
-                {l:'お風呂に入りたい', t:'おふろにはいりたいです', c:'life', i:'🛁', bg:'#ECFDF5'},
-                {l:'手を洗いたい', t:'てをあらいます', c:'life', i:'🧼', bg:'#ECFDF5'},
-                {l:'着替えたい', t:'きがえたいです', c:'life', i:'👕', bg:'#ECFDF5'},
-                {l:'寝たい', t:'ねたいです', c:'life', i:'😴', bg:'#ECFDF5', pin:true},
-                {l:'電気を消して', t:'でんきをけしてください', c:'life', i:'💡', bg:'#ECFDF5'},
-                {l:'暑い', t:'あついです', c:'life', i:'🥵', bg:'#ECFDF5'},
-                {l:'寒い', t:'さむいです', c:'life', i:'🥶', bg:'#ECFDF5'},
-                {l:'くつを履く', t:'くつをはきます', c:'life', i:'👟', bg:'#ECFDF5'},
-                {l:'歯磨き', t:'はみがきします', c:'life', i:'🪥', bg:'#ECFDF5'},
+                // 生活カテゴリ
+                {kanji: 'おはよう', hiragana: 'おはよう', talk: 'おはようございます', emoji: '🌅', category: 'life'},
+                {kanji: 'おやすみ', hiragana: 'おやすみ', talk: 'おやすみなさい', emoji: '🌙', category: 'life'},
+                {kanji: 'ありがとう', hiragana: 'ありがとう', talk: 'ありがとうございます', emoji: '🙏', category: 'life'},
                 
-                // たべもの
-                {l:'ごはんが食べたい', t:'ごはんがたべたいです', c:'food', i:'🍚', bg:'#FEF2F2', pin:true},
-                {l:'おやつが食べたい', t:'おやつがたべたいです', c:'food', i:'🍪', bg:'#FEF2F2', pin:true},
-                {l:'パン', t:'ぱん', c:'food', i:'🍞', bg:'#FEF2F2'},
-                {l:'バナナ', t:'ばなな', c:'food', i:'🍌', bg:'#FEF2F2'},
-                {l:'りんご', t:'りんご', c:'food', i:'🍎', bg:'#FEF2F2'},
-                {l:'ゼリー', t:'ぜりー', c:'food', i:'🍮', bg:'#FEF2F2'},
-                {l:'アイス', t:'あいすくりーむ', c:'food', i:'🍦', bg:'#FEF2F2'},
-                {l:'水が飲みたい', t:'みずがのみたいです', c:'food', i:'💧', bg:'#FEF2F2'},
-                {l:'お茶', t:'おちゃ', c:'food', i:'🍵', bg:'#FEF2F2'},
-                {l:'ジュース', t:'じゅーす', c:'food', i:'🧃', bg:'#FEF2F2'},
-                {l:'牛乳', t:'ぎゅうにゅう', c:'food', i:'🥛', bg:'#FEF2F2'},
+                // 食事カテゴリ
+                {kanji: 'ごはん', hiragana: 'ごはん', talk: 'ごはんを食べたいです', emoji: '🍚', category: 'food'},
+                {kanji: 'おやつ', hiragana: 'おやつ', talk: 'おやつが欲しいです', emoji: '🍰', category: 'food'},
+                {kanji: 'りんご', hiragana: 'りんご', talk: 'りんごを食べたいです', emoji: '🍎', category: 'food'},
+                {kanji: 'バナナ', hiragana: 'ばなな', talk: 'バナナを食べたいです', emoji: '🍌', category: 'food'},
+                {kanji: 'パン', hiragana: 'ぱん', talk: 'パンを食べたいです', emoji: '🍞', category: 'food'},
                 
-                // あそび
-                {l:'YouTube見たい', t:'ゆーちゅーぶがみたいです', c:'play', i:'📺', bg:'#EFF6FF', pin:true},
-                {l:'iPad使いたい', t:'あいぱっどがつかいたいです', c:'play', i:'📱', bg:'#EFF6FF', pin:true},
-                {l:'ブロック', t:'ぶろっく', c:'play', i:'🧱', bg:'#EFF6FF'},
-                {l:'ぬいぐるみ', t:'ぬいぐるみ', c:'play', i:'🧸', bg:'#EFF6FF'},
-                {l:'ミニカー', t:'みにかー', c:'play', i:'🚗', bg:'#EFF6FF'},
-                {l:'ボール', t:'ぼーる', c:'play', i:'⚽', bg:'#EFF6FF'},
-                {l:'絵本', t:'えほん', c:'play', i:'📖', bg:'#EFF6FF'},
-                {l:'お絵描き', t:'おえかき', c:'play', i:'🖍️', bg:'#EFF6FF'},
-                {l:'公園に行きたい', t:'こうえんにいきたいです', c:'play', i:'🛝', bg:'#EFF6FF'},
-                {l:'シャボン玉', t:'しゃぼんだま', c:'play', i:'🫧', bg:'#EFF6FF'},
-                {l:'音楽', t:'おんがく', c:'play', i:'🎵', bg:'#EFF6FF'},
+                // 遊びカテゴリ
+                {kanji: 'あそぶ', hiragana: 'あそぶ', talk: '遊びたいです', emoji: '⚽', category: 'play'},
+                {kanji: 'テレビ', hiragana: 'てれび', talk: 'テレビを見たいです', emoji: '📺', category: 'play'},
+                {kanji: '本', hiragana: 'ほん', talk: '本を読みたいです', emoji: '📚', category: 'play'},
+                {kanji: '公園', hiragana: 'こうえん', talk: '公園に行きたいです', emoji: '🏞️', category: 'play'},
+                {kanji: 'お店', hiragana: 'おみせ', talk: 'お店に行きたいです', emoji: '🏪', category: 'play'},
                 
-                // きもち・ひと
-                {l:'痛い', t:'いたいです', c:'feeling', i:'🤕', bg:'#F5F3FF', pin:true},
-                {l:'イヤ', t:'いやです', c:'feeling', i:'😠', bg:'#F5F3FF'},
-                {l:'楽しい', t:'たのしい', c:'feeling', i:'😄', bg:'#F5F3FF'},
-                {l:'悲しい', t:'かなしい', c:'feeling', i:'😢', bg:'#F5F3FF'},
-                {l:'怖い', t:'こわい', c:'feeling', i:'😨', bg:'#F5F3FF'},
-                {l:'お母さん', t:'おかあさん', c:'feeling', i:'👩', bg:'#F5F3FF'},
-                {l:'お父さん', t:'おとうさん', c:'feeling', i:'👨', bg:'#F5F3FF'},
-                {l:'先生', t:'せんせい', c:'feeling', i:'🧑‍🏫', bg:'#F5F3FF'},
+                // 気持ちカテゴリ
+                {kanji: 'うれしい', hiragana: 'うれしい', talk: 'うれしいです', emoji: '😊', category: 'feeling'},
+                {kanji: 'かなしい', hiragana: 'かなしい', talk: '悲しいです', emoji: '😢', category: 'feeling'},
+                {kanji: '怒った', hiragana: 'おこった', talk: '怒っています', emoji: '😠', category: 'feeling'},
+                {kanji: 'こわい', hiragana: 'こわい', talk: '怖いです', emoji: '😨', category: 'feeling'},
                 
-                // そのほか
-                {l:'病院', t:'びょういん', c:'other', i:'🏥', bg:'#F9FAFB'},
-                {l:'学校', t:'がっこう', c:'other', i:'🏫', bg:'#F9FAFB'},
-                {l:'お店', t:'おみせ', c:'other', i:'🏪', bg:'#F9FAFB'},
-                {l:'家に帰る', t:'いえにかえります', c:'other', i:'🏠', bg:'#F9FAFB'}
+                // 色カテゴリ（充実化）
+                {kanji: '赤い', hiragana: 'あかい', talk: '赤い', emoji: '🔴', category: 'color'},
+                {kanji: '青い', hiragana: 'あおい', talk: '青い', emoji: '🔵', category: 'color'},
+                {kanji: '黄色い', hiragana: 'きいろい', talk: '黄色い', emoji: '🟡', category: 'color'},
+                {kanji: '緑', hiragana: 'みどり', talk: '緑', emoji: '🟢', category: 'color'},
+                {kanji: '白い', hiragana: 'しろい', talk: '白い', emoji: '⚪', category: 'color'},
+                {kanji: '黒い', hiragana: 'くろい', talk: '黒い', emoji: '⚫', category: 'color'},
+                {kanji: 'ピンク', hiragana: 'ぴんく', talk: 'ピンク', emoji: '🩷', category: 'color'},
+                {kanji: 'オレンジ', hiragana: 'おれんじ', talk: 'オレンジ', emoji: '🟠', category: 'color'},
+                {kanji: '紫', hiragana: 'むらさき', talk: '紫', emoji: '🟣', category: 'color'},
+                {kanji: '茶色', hiragana: 'ちゃいろ', talk: '茶色', emoji: '🟤', category: 'color'},
             ];
 
-            cards = defaults.map((d, i) => ({
-                id: 'def_' + i,
-                label: d.l,
-                talk: d.t,
-                category: d.c,
-                image: createIcon(d.i, d.bg),
-                isDefault: true,
-                pin: d.pin || false,
-                useCount: 0,
-                timestamp: Date.now() - (defaults.length - i) * 1000
-            }));
+            defaults.forEach(d => {
+                cards.push({
+                    id: 'def_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                    ...d,
+                    imageType: 'emoji',
+                    pinned: false,
+                    usageCount: 0,
+                    timestamp: Date.now()
+                });
+            });
             saveData();
         }
 
-        function createIcon(icon, bg) {
-            const cvs = document.createElement('canvas');
-            cvs.width = 300; cvs.height = 300;
-            const ctx = cvs.getContext('2d');
-            ctx.fillStyle = bg;
-            ctx.fillRect(0,0,300,300);
-            ctx.font = '160px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.shadowColor = "rgba(0,0,0,0.15)";
-            ctx.shadowBlur = 8;
-            ctx.shadowOffsetY = 4;
-            ctx.fillText(icon, 150, 150);
-            return cvs.toDataURL('image/jpeg', 0.8);
-        }
+        // UI更新
+        function updateModeUI() {
+            const isChild = currentMode === 'child';
+            document.getElementById('modeBadge').textContent = isChild ? 'ひらがな' : '漢字';
+            
+            // UI全体のテキストを切り替え
+            document.getElementById('stripPlaceholderText').textContent = isChild ? 'かーどをならべてね' : 'カードをならべてね';
+            document.getElementById('emptyText').textContent = isChild ? 'かーどがありません' : 'カードがありません';
+            document.getElementById('settingsTitle').innerHTML = isChild ? '<i class="fas fa-cog mr-2"></i>せってい' : '<i class="fas fa-cog mr-2"></i>設定';
+            document.getElementById('modeLabel').textContent = isChild ? 'ひょうじもーど' : '表示モード';
+            document.getElementById('sizeLabel').textContent = isChild ? 'かーどさいず' : 'カードサイズ';
+            document.getElementById('sortLabel').textContent = isChild ? 'ならびじゅん' : '並び順';
+            document.getElementById('dataLabel').textContent = isChild ? 'でーたかんり' : 'データ管理';
+            document.getElementById('exportBtn').innerHTML = isChild ? '<i class="fas fa-download mr-1"></i>だす' : '<i class="fas fa-download mr-1"></i>エクスポート';
+            document.getElementById('importBtn').innerHTML = isChild ? '<i class="fas fa-upload mr-1"></i>いれる' : '<i class="fas fa-upload mr-1"></i>インポート';
+            document.getElementById('resetBtn').innerHTML = isChild ? '<i class="fas fa-trash mr-1"></i>りせっと' : '<i class="fas fa-trash mr-1"></i>データ初期化';
+            document.getElementById('addCardBtn').innerHTML = isChild ? '<i class="fas fa-plus"></i> <span class="hidden sm:inline">つくる</span>' : '<i class="fas fa-plus"></i> <span class="hidden sm:inline">作る</span>';
+            document.getElementById('playBtnText').textContent = 'おはなし';
+            document.getElementById('popBtn').querySelector('span').textContent = isChild ? '1つけす' : '1つ消す';
+            document.getElementById('clearBtn').querySelector('span').textContent = isChild ? 'ぜんけし' : '全消し';
+            
+            // モーダル内のテキスト
+            document.getElementById('modalTitle').innerHTML = isChild ? '<i class="fas fa-plus-circle mr-2"></i>かーどをつくる' : '<i class="fas fa-plus-circle mr-2"></i>カードを作る';
+            document.getElementById('imageLabel').textContent = isChild ? 'え・がぞう' : '絵・画像';
+            document.getElementById('emojiText').textContent = isChild ? 'えもじ' : '絵文字';
+            document.getElementById('fileText').textContent = isChild ? 'しゃしん' : '写真';
+            document.getElementById('canvasText').textContent = isChild ? 'かく' : '描く';
+            document.getElementById('kanjiLabel').textContent = isChild ? 'かんじ' : '漢字';
+            document.getElementById('hiraganaLabel').textContent = isChild ? 'ひらがな' : 'ひらがな';
+            document.getElementById('talkLabel').textContent = isChild ? 'よみあげ（しょうりゃくか）' : '読み上げ（省略可）';
+            document.getElementById('categoryLabel').textContent = isChild ? 'かてごり' : 'カテゴリ';
+            document.getElementById('saveCardBtn').innerHTML = isChild ? '<i class="fas fa-save mr-2"></i>ほぞん' : '<i class="fas fa-save mr-2"></i>保存';
+            
+            // エクスポートモーダル
+            document.getElementById('exportTitle').innerHTML = isChild ? '<i class="fas fa-download mr-2"></i>だす' : '<i class="fas fa-download mr-2"></i>エクスポート';
+            document.getElementById('exportAllBtn').innerHTML = isChild ? '<i class="fas fa-globe mr-2"></i>ぜんぶのかーど' : '<i class="fas fa-globe mr-2"></i>すべてのカード';
+            document.getElementById('exportPinnedBtn').innerHTML = isChild ? '<i class="fas fa-star mr-2"></i>ぴんどめのみ' : '<i class="fas fa-star mr-2"></i>ピン留めのみ';
+            document.getElementById('exportCategoryBtn').innerHTML = isChild ? '<i class="fas fa-folder mr-2"></i>せんたくかてごり' : '<i class="fas fa-folder mr-2"></i>選択カテゴリ';
 
-        // --- UI適用 ---
-        function applyConfig() {
-            const body = document.body;
-            const modeBadge = document.getElementById('modeBadge');
-            const childBtn = document.getElementById('modeChildBtn');
-            const adultBtn = document.getElementById('modeAdultBtn');
-
-            // モード
-            if(config.mode === 'child') {
-                modeBadge.textContent = 'ひらがな';
-                modeBadge.className = "text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-600 font-bold";
-                if(childBtn) {
-                    childBtn.className = "py-2 rounded-lg text-sm font-bold border-2 bg-green-50 border-green-500 text-green-700";
-                    adultBtn.className = "py-2 rounded-lg text-sm font-bold border-2 border-gray-300 text-gray-500";
-                }
+            // Buy Me a Coffeeボタンの表示/非表示
+            const coffeeSection = document.getElementById('coffeeSection');
+            if(isChild) {
+                coffeeSection.classList.add('hidden');
             } else {
-                modeBadge.textContent = '漢字';
-                modeBadge.className = "text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 font-bold";
-                if(adultBtn) {
-                    adultBtn.className = "py-2 rounded-lg text-sm font-bold border-2 bg-blue-50 border-blue-500 text-blue-700";
-                    childBtn.className = "py-2 rounded-lg text-sm font-bold border-2 border-gray-300 text-gray-500";
-                }
+                coffeeSection.classList.remove('hidden');
             }
 
-            // グリッドサイズ
-            body.className = body.className.replace(/grid-\w+-?\w*/g, '');
-            body.classList.add('grid-' + config.gridSize);
-            
-            const sizeButtons = {
-                'x-small': 'sizeXS',
-                'small': 'sizeS',
-                'medium': 'sizeM',
-                'large': 'sizeL',
-                'x-large': 'sizeXL'
-            };
-            
-            Object.entries(sizeButtons).forEach(([size, btnId]) => {
-                const btn = document.getElementById(btnId);
-                if(btn) {
-                    if(size === config.gridSize) {
-                        btn.className = "flex-1 py-2 rounded text-xs font-bold border-2 bg-blue-50 border-blue-500 text-blue-700";
-                    } else {
-                        btn.className = "flex-1 py-2 rounded text-xs font-bold border border-gray-300 text-gray-600 hover:bg-gray-50";
-                    }
-                }
-            });
-
-            // ソート
-            const sortSel = document.getElementById('sortSelect');
-            if(sortSel) sortSel.value = config.sort;
-
-            saveConfig();
-            refreshUI();
-        }
-
-        function setMode(mode) {
-            config.mode = mode;
-            applyConfig();
-        }
-
-        function setGridSize(size) {
-            config.gridSize = size;
-            applyConfig();
-        }
-
-        function setSort(sort) {
-            config.sort = sort;
-            saveConfig();
-            refreshUI();
-        }
-
-        // --- UI描画 ---
-        function refreshUI() {
-            renderCategoryBar();
-            renderCardGrid();
-            renderStrip();
+            const childBtn = document.getElementById('modeChildBtn');
+            const adultBtn = document.getElementById('modeAdultBtn');
+            if(isChild) {
+                childBtn.classList.add('bg-blue-500', 'text-white', 'border-blue-500');
+                childBtn.classList.remove('bg-white', 'text-gray-600', 'border-gray-300');
+                adultBtn.classList.add('bg-white', 'text-gray-600', 'border-gray-300');
+                adultBtn.classList.remove('bg-blue-500', 'text-white', 'border-blue-500');
+            } else {
+                adultBtn.classList.add('bg-blue-500', 'text-white', 'border-blue-500');
+                adultBtn.classList.remove('bg-white', 'text-gray-600', 'border-gray-300');
+                childBtn.classList.add('bg-white', 'text-gray-600', 'border-gray-300');
+                childBtn.classList.remove('bg-blue-500', 'text-white', 'border-blue-500');
+            }
         }
 
         function renderCategoryBar() {
             const bar = document.getElementById('categoryBar');
-            const all = [{id: 'all', label: 'すべて'}, ...categories];
-            bar.innerHTML = all.map(cat => `
-                <button onclick="setFilter('${cat.id}')" class="px-4 py-1.5 rounded-full text-sm font-bold whitespace-nowrap transition-all ${
-                    currentFilter === cat.id 
-                    ? 'bg-blue-600 text-white shadow-md' 
-                    : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
-                }">
-                    ${cat.label}
+            const isChild = currentMode === 'child';
+            bar.innerHTML = `
+                <button onclick="setFilter('all')" id="catAll" class="px-4 py-1.5 rounded-full text-sm font-bold whitespace-nowrap transition-all">
+                    ${isChild ? 'すべて' : 'すべて'}
+                </button>
+            ` + categories.map(c => `
+                <button onclick="setFilter('${c.id}')" id="cat${c.id}" class="px-4 py-1.5 rounded-full text-sm font-bold whitespace-nowrap transition-all">
+                    ${c.emoji} ${isChild ? c.nameChild : c.name}
                 </button>
             `).join('');
+            updateCategoryUI();
         }
 
-        function setFilter(id) {
-            currentFilter = id;
-            isPinFilter = false;
-            document.getElementById('pinFilterBtn').classList.remove('text-yellow-500');
-            refreshUI();
-        }
-
-        function togglePinFilter() {
-            isPinFilter = !isPinFilter;
-            const btn = document.getElementById('pinFilterBtn');
-            if(isPinFilter) {
-                btn.classList.add('text-yellow-500');
-                currentFilter = 'all';
-            } else {
-                btn.classList.remove('text-yellow-500');
+        function updateCategoryUI() {
+            document.querySelectorAll('#categoryBar button').forEach(btn => {
+                btn.classList.remove('bg-blue-500', 'text-white', 'shadow-md');
+                btn.classList.add('bg-white', 'text-gray-600');
+            });
+            const activeBtn = document.getElementById(currentFilter === 'all' ? 'catAll' : 'cat' + currentFilter);
+            if(activeBtn) {
+                activeBtn.classList.add('bg-blue-500', 'text-white', 'shadow-md');
+                activeBtn.classList.remove('bg-white', 'text-gray-600');
             }
-            refreshUI();
         }
 
-        function renderCardGrid() {
+        function renderCards() {
+            let filtered = currentFilter === 'all' ? [...cards] : cards.filter(c => c.category === currentFilter);
+            if(pinFilterActive) filtered = filtered.filter(c => c.pinned);
+            
+            // ソート
+            switch(currentSort) {
+                case 'name-asc':
+                    filtered.sort((a, b) => a.kanji.localeCompare(b.kanji, 'ja'));
+                    break;
+                case 'name-desc':
+                    filtered.sort((a, b) => b.kanji.localeCompare(a.kanji, 'ja'));
+                    break;
+                case 'category':
+                    filtered.sort((a, b) => {
+                        const catA = categories.findIndex(c => c.id === a.category);
+                        const catB = categories.findIndex(c => c.id === b.category);
+                        return catA - catB;
+                    });
+                    break;
+                case 'usage':
+                    filtered.sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0));
+                    break;
+                default: // default
+                    filtered.sort((a, b) => {
+                        if(a.pinned && !b.pinned) return -1;
+                        if(!a.pinned && b.pinned) return 1;
+                        return b.timestamp - a.timestamp;
+                    });
+            }
+
             const grid = document.getElementById('cardGrid');
             const empty = document.getElementById('emptyState');
-            
-            let list = cards.filter(c => {
-                if(isPinFilter) return c.pin;
-                if(currentFilter === 'all') return true;
-                return c.category === currentFilter;
-            });
 
-            // ソート
-            list.sort((a, b) => {
-                if(config.sort === 'default') {
-                    if(a.pin && !b.pin) return -1;
-                    if(!a.pin && b.pin) return 1;
-                    return b.timestamp - a.timestamp;
-                }
-                if(config.sort === 'aiueo') {
-                    return a.talk.localeCompare(b.talk, 'ja');
-                }
-                if(config.sort === 'category') {
-                    if(a.category !== b.category) return a.category.localeCompare(b.category);
-                    return 0;
-                }
-                if(config.sort === 'frequency') {
-                    return (b.useCount||0) - (a.useCount||0);
-                }
-                return 0;
-            });
-
-            if(list.length === 0) {
+            if(filtered.length === 0) {
                 grid.innerHTML = '';
                 empty.classList.remove('hidden');
                 empty.classList.add('flex');
-                return;
+            } else {
+                empty.classList.add('hidden');
+                empty.classList.remove('flex');
+                grid.innerHTML = filtered.map(c => renderCard(c)).join('');
             }
-            empty.classList.add('hidden');
-            empty.classList.remove('flex');
+        }
 
-            grid.innerHTML = list.map(c => {
-                const catObj = categories.find(cat => cat.id === c.category) || {color:'cat-other'};
-                const dispName = (config.mode === 'child') ? c.talk : c.label;
+        function renderCard(card) {
+            const cat = categories.find(ct => ct.id === card.category) || categories[categories.length - 1];
+            const displayText = currentMode === 'child' ? card.hiragana : card.kanji;
+            
+            let imageHtml = '';
+            if(card.imageType === 'emoji') {
+                imageHtml = `<div class="text-5xl mb-2">${card.emoji || '📄'}</div>`;
+            } else if(card.imageType === 'file' && card.imageData) {
+                imageHtml = `<img src="${card.imageData}" class="w-full h-20 object-contain mb-2">`;
+            } else if(card.imageType === 'canvas' && card.canvasData) {
+                imageHtml = `<img src="${card.canvasData}" class="w-full h-20 object-contain mb-2">`;
+            }
 
-                return `
-                <div class="pecs-card rounded-xl overflow-hidden flex flex-col shadow-md ${catObj.color} aspect-[3/4]" onclick="addToStrip('${c.id}')">
-                    ${c.pin ? '<i class="fas fa-star pin-badge"></i>' : ''}
-                    <div class="absolute top-1 right-1 z-10">
-                        <button onclick="event.stopPropagation(); openEditModal('${c.id}')" class="w-7 h-7 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center text-gray-400 hover:text-blue-600 shadow border border-gray-200 transition-colors">
-                            <i class="fas fa-ellipsis-h text-xs"></i>
+            return `
+                <div class="pecs-card ${cat.color} rounded-xl p-3 flex flex-col items-center justify-center aspect-square relative" onclick="addToStrip('${card.id}')">
+                    ${card.pinned ? '<i class="fas fa-thumbtack pin-badge"></i>' : ''}
+                    ${imageHtml}
+                    <span class="font-bold text-center text-sm leading-tight">${displayText}</span>
+                    <div class="absolute bottom-1 right-1 flex gap-1">
+                        <button onclick="event.stopPropagation(); togglePin('${card.id}')" class="w-6 h-6 bg-white/80 hover:bg-white rounded-full flex items-center justify-center shadow-sm">
+                            <i class="fas fa-thumbtack text-xs ${card.pinned ? 'text-yellow-500' : 'text-gray-400'}"></i>
+                        </button>
+                        <button onclick="event.stopPropagation(); editCard('${card.id}')" class="w-6 h-6 bg-white/80 hover:bg-white rounded-full flex items-center justify-center shadow-sm">
+                            <i class="fas fa-edit text-xs text-blue-600"></i>
+                        </button>
+                        <button onclick="event.stopPropagation(); deleteCard('${card.id}')" class="w-6 h-6 bg-white/80 hover:bg-white rounded-full flex items-center justify-center shadow-sm">
+                            <i class="fas fa-trash text-xs text-red-600"></i>
                         </button>
                     </div>
-                    <div class="flex-1 bg-white p-2 flex items-center justify-center overflow-hidden">
-                        <img src="${c.image}" class="w-full h-full object-contain pointer-events-none">
-                    </div>
-                    <div class="h-10 flex items-center justify-center bg-white/95 border-t border-gray-200 px-2">
-                        <span class="text-sm font-bold text-center line-clamp-2 leading-tight">${dispName}</span>
-                    </div>
-                </div>`;
-            }).join('');
+                </div>
+            `;
         }
 
-        function renderStrip() {
+        function renderSentenceStrip() {
             const strip = document.getElementById('sentenceStrip');
-            const ph = document.getElementById('stripPlaceholder');
+            const placeholder = document.getElementById('stripPlaceholder');
             
-            strip.querySelectorAll('.strip-item').forEach(e => e.remove());
-
             if(sentenceStrip.length === 0) {
-                ph.style.display = 'flex';
-                return;
+                if(!placeholder) {
+                    strip.innerHTML = `<div id="stripPlaceholder" class="absolute inset-0 flex items-center justify-center pointer-events-none text-gray-400 font-bold">
+                        <i class="fas fa-hand-pointer mr-2"></i> <span id="stripPlaceholderText">${currentMode === 'child' ? 'かーどをならべてね' : 'カードをならべてね'}</span>
+                    </div>`;
+                } else {
+                    placeholder.classList.remove('hidden');
+                }
+            } else {
+                if(placeholder) placeholder.classList.add('hidden');
+                
+                const cardsHtml = sentenceStrip.map((c, i) => {
+                    const displayText = currentMode === 'child' ? c.hiragana : c.kanji;
+                    let imageHtml = '';
+                    if(c.imageType === 'emoji') {
+                        imageHtml = `<div class="text-3xl mb-1">${c.emoji || '📄'}</div>`;
+                    } else if(c.imageType === 'file' && c.imageData) {
+                        imageHtml = `<img src="${c.imageData}" class="w-full h-12 object-contain mb-1">`;
+                    } else if(c.imageType === 'canvas' && c.canvasData) {
+                        imageHtml = `<img src="${c.canvasData}" class="w-full h-12 object-contain mb-1">`;
+                    }
+                    
+                    return `
+                        <div id="strip-${i}" onclick="removeFromStrip(${i})" class="strip-card flex-none w-24 h-24 bg-white rounded-lg shadow-md p-2 flex flex-col items-center justify-center border-2 border-gray-200 transition-all">
+                            ${imageHtml}
+                            <span class="text-xs font-bold text-center leading-tight">${displayText}</span>
+                        </div>
+                    `;
+                }).join('');
+                
+                strip.innerHTML = (placeholder ? '' : '') + cardsHtml;
             }
-            ph.style.display = 'none';
+        }
 
-            sentenceStrip.forEach((c, idx) => {
-                const div = document.createElement('div');
-                div.className = "strip-item flex-shrink-0 w-24 bg-white rounded-lg border-2 border-gray-300 shadow overflow-hidden flex flex-col cursor-pointer transition-all hover:border-blue-400";
-                div.id = `strip-${idx}`;
-                div.onclick = () => removeStripItem(idx);
-                
-                const dispName = (config.mode === 'child') ? c.talk : c.label;
-                
-                div.innerHTML = `
-                    <div class="flex-1 p-2 flex items-center justify-center bg-white">
-                        <img src="${c.image}" class="max-w-full max-h-full object-contain">
-                    </div>
-                    <div class="h-7 bg-gray-50 flex items-center justify-center text-[10px] font-bold px-1 border-t">
-                        <span class="truncate w-full text-center">${dispName}</span>
-                    </div>
-                `;
-                strip.appendChild(div);
-            });
+        function addToStrip(cardId) {
+            const card = cards.find(c => c.id === cardId);
+            if(!card) return;
             
-            setTimeout(() => strip.scrollTo({left: strip.scrollWidth, behavior:'smooth'}), 50);
+            card.usageCount = (card.usageCount || 0) + 1;
+            sentenceStrip.push(card);
+            saveData();
+            renderSentenceStrip();
         }
 
-        // --- アクション ---
-        function addToStrip(id) {
-            const c = cards.find(x => x.id === id);
-            if(c) {
-                sentenceStrip.push({...c});
-                c.useCount = (c.useCount || 0) + 1;
-                saveData();
-                renderStrip();
-            }
-        }
-
-        function removeStripItem(idx) {
-            sentenceStrip.splice(idx, 1);
-            renderStrip();
+        function removeFromStrip(index) {
+            sentenceStrip.splice(index, 1);
+            renderSentenceStrip();
         }
 
         function popLast() {
-            if(sentenceStrip.length > 0) {
-                sentenceStrip.pop();
-                renderStrip();
-            }
+            if(sentenceStrip.length === 0) return;
+            sentenceStrip.pop();
+            renderSentenceStrip();
         }
 
         function clearAll() {
-            if(sentenceStrip.length > 0 && confirm('文をすべて消しますか？')) {
-                sentenceStrip = [];
-                renderStrip();
-            }
+            if(sentenceStrip.length === 0) return;
+            const isChild = currentMode === 'child';
+            if(!confirm(isChild ? 'ぜんぶけすの？' : 'すべて消しますか？')) return;
+            sentenceStrip = [];
+            renderSentenceStrip();
         }
 
-        // --- モーダル ---
+        function togglePin(cardId) {
+            const card = cards.find(c => c.id === cardId);
+            if(!card) return;
+            card.pinned = !card.pinned;
+            saveData();
+            renderCards();
+            showToast(card.pinned ? '📌 ピン留めしました' : '📌 ピン留め解除しました');
+        }
+
+        function togglePinFilter() {
+            pinFilterActive = !pinFilterActive;
+            const btn = document.getElementById('pinFilterBtn');
+            if(pinFilterActive) {
+                btn.classList.remove('text-gray-400');
+                btn.classList.add('text-yellow-500');
+            } else {
+                btn.classList.add('text-gray-400');
+                btn.classList.remove('text-yellow-500');
+            }
+            renderCards();
+        }
+
+        function setFilter(filter) {
+            currentFilter = filter;
+            updateCategoryUI();
+            renderCards();
+        }
+
+        function setMode(mode) {
+            currentMode = mode;
+            saveData();
+            updateModeUI();
+            renderCategoryBar();
+            renderCards();
+            renderSentenceStrip();
+        }
+
+        function setGridSize(size) {
+            currentGridSize = size;
+            saveData();
+            updateGridSizeUI();
+        }
+
+        function updateGridSizeUI() {
+            const container = document.getElementById('mainContainer');
+            container.className = container.className.replace(/grid-\w+-?\w*/g, '');
+            container.classList.add('grid-' + currentGridSize);
+            
+            ['x-small', 'small', 'medium', 'large', 'x-large'].forEach(s => {
+                const btn = document.getElementById('size' + s.split('-').map((w, i) => i === 0 ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1)).join(''));
+                if(s === currentGridSize) {
+                    btn.classList.add('bg-blue-500', 'text-white');
+                    btn.classList.remove('bg-white', 'text-gray-600');
+                } else {
+                    btn.classList.remove('bg-blue-500', 'text-white');
+                    btn.classList.add('bg-white', 'text-gray-600');
+                }
+            });
+        }
+
+        function setSort(sort) {
+            currentSort = sort;
+            saveData();
+            renderCards();
+        }
+
+        function updateSortUI() {
+            document.getElementById('sortSelect').value = currentSort;
+        }
+
         function toggleSettings() {
             const panel = document.getElementById('settingsPanel');
             panel.classList.toggle('hidden');
         }
 
+        // カード作成/編集
         function openCardModal() {
-            editingId = null;
-            tempImg = null;
+            document.getElementById('editCardId').value = '';
+            document.getElementById('kanjiInput').value = '';
+            document.getElementById('hiraganaInput').value = '';
+            document.getElementById('talkInput').value = '';
+            document.getElementById('emojiInput').value = '😊';
+            document.getElementById('categorySelect').innerHTML = categories.map(c => 
+                `<option value="${c.id}">${c.emoji} ${currentMode === 'child' ? c.nameChild : c.name}</option>`
+            ).join('');
+            
+            selectImageType('emoji');
+            clearCanvas();
+            document.getElementById('imageFileInput').value = '';
+            document.getElementById('imagePreview').classList.add('hidden');
+            
             document.getElementById('cardModal').classList.remove('hidden');
-            document.getElementById('modalTitle').textContent = '新しいカード';
-            document.getElementById('inputLabel').value = '';
-            document.getElementById('inputTalk').value = '';
-            document.getElementById('inputPin').checked = false;
-            document.getElementById('previewImg').classList.add('hidden');
-            document.getElementById('previewArea').classList.remove('hidden');
-            document.getElementById('delBtn').classList.add('hidden');
-            renderCatSelect('require');
         }
 
-        function openEditModal(id) {
-            const c = cards.find(x => x.id === id);
-            if(!c) return;
-            
-            editingId = id;
-            tempImg = c.image;
-            document.getElementById('cardModal').classList.remove('hidden');
-            document.getElementById('modalTitle').textContent = 'カード編集';
-            document.getElementById('inputLabel').value = c.label;
-            document.getElementById('inputTalk').value = c.talk;
-            document.getElementById('inputPin').checked = c.pin || false;
-            
-            const img = document.getElementById('previewImg');
-            img.src = c.image;
-            img.classList.remove('hidden');
-            document.getElementById('previewArea').classList.add('hidden');
-            document.getElementById('delBtn').classList.remove('hidden');
-            
-            renderCatSelect(c.category);
-        }
-
-        function closeModal() {
+        function closeCardModal() {
             document.getElementById('cardModal').classList.add('hidden');
         }
 
-        function renderCatSelect(selId) {
-            const sel = document.getElementById('inputCat');
-            sel.innerHTML = categories.map(c => 
-                `<option value="${c.id}" ${c.id===selId?'selected':''}>${c.label}</option>`
-            ).join('');
+        function selectImageType(type) {
+            currentImageType = type;
+            
+            document.getElementById('emojiPicker').classList.add('hidden');
+            document.getElementById('filePicker').classList.add('hidden');
+            document.getElementById('canvasPicker').classList.add('hidden');
+            
+            ['imageTypeEmoji', 'imageTypeFile', 'imageTypeCanvas'].forEach(id => {
+                const btn = document.getElementById(id);
+                btn.classList.remove('bg-blue-500', 'text-white', 'border-blue-500');
+                btn.classList.add('bg-white', 'text-gray-600', 'border-gray-300');
+            });
+            
+            if(type === 'emoji') {
+                document.getElementById('emojiPicker').classList.remove('hidden');
+                document.getElementById('imageTypeEmoji').classList.add('bg-blue-500', 'text-white', 'border-blue-500');
+            } else if(type === 'file') {
+                document.getElementById('filePicker').classList.remove('hidden');
+                document.getElementById('imageTypeFile').classList.add('bg-blue-500', 'text-white', 'border-blue-500');
+            } else if(type === 'canvas') {
+                document.getElementById('canvasPicker').classList.remove('hidden');
+                document.getElementById('imageTypeCanvas').classList.add('bg-blue-500', 'text-white', 'border-blue-500');
+            }
         }
 
-        function handleImage(input) {
-            if(!input.files[0]) return;
+        function setEmoji(emoji) {
+            document.getElementById('emojiInput').value = emoji;
+        }
+
+        function handleImageFile(input) {
+            if(!input.files || !input.files[0]) return;
+            
             const reader = new FileReader();
             reader.onload = e => {
-                resizeImage(e.target.result, res => {
-                    tempImg = res;
-                    const img = document.getElementById('previewImg');
-                    img.src = res;
-                    img.classList.remove('hidden');
-                    document.getElementById('previewArea').classList.add('hidden');
-                });
+                document.getElementById('previewImg').src = e.target.result;
+                document.getElementById('imagePreview').classList.remove('hidden');
             };
             reader.readAsDataURL(input.files[0]);
         }
 
-        function resizeImage(base64, cb) {
-            const img = new Image();
-            img.src = base64;
-            img.onload = () => {
-                const cvs = document.createElement('canvas');
-                const MAX = 500;
-                let w = img.width, h = img.height;
-                if(w > h) {
-                    if(w > MAX) { h *= MAX/w; w = MAX; }
-                } else {
-                    if(h > MAX) { w *= MAX/h; h = MAX; }
-                }
-                cvs.width = w;
-                cvs.height = h;
-                const ctx = cvs.getContext('2d');
-                ctx.fillStyle = '#FFFFFF';
-                ctx.fillRect(0, 0, w, h);
-                ctx.drawImage(img, 0, 0, w, h);
-                cb(cvs.toDataURL('image/jpeg', 0.75));
+        function autoConvertToHiragana(text) {
+            const conversionMap = {
+                'トイレ': 'といれ', '飲む': 'のむ', '休む': 'やすむ', '助けて': 'たすけて',
+                'おはよう': 'おはよう', 'おやすみ': 'おやすみ', 'ありがとう': 'ありがとう',
+                'ごはん': 'ごはん', 'おやつ': 'おやつ', 'りんご': 'りんご', 'バナナ': 'ばなな', 'パン': 'ぱん',
+                'あそぶ': 'あそぶ', 'テレビ': 'てれび', '本': 'ほん', '公園': 'こうえん', 'お店': 'おみせ',
+                'うれしい': 'うれしい', 'かなしい': 'かなしい', '怒った': 'おこった', 'こわい': 'こわい',
+                '赤い': 'あかい', '青い': 'あおい', '黄色い': 'きいろい', '緑': 'みどり', '白い': 'しろい',
+                '黒い': 'くろい', 'ピンク': 'ぴんく', 'オレンジ': 'おれんじ', '紫': 'むらさき', '茶色': 'ちゃいろ'
             };
+            
+            if(conversionMap[text]) {
+                document.getElementById('hiraganaInput').value = conversionMap[text];
+            }
         }
 
         function saveCard() {
-            const lbl = document.getElementById('inputLabel').value.trim();
-            let tlk = document.getElementById('inputTalk').value.trim();
-            const cat = document.getElementById('inputCat').value;
-            const pin = document.getElementById('inputPin').checked;
+            const kanji = document.getElementById('kanjiInput').value.trim();
+            const hiragana = document.getElementById('hiraganaInput').value.trim();
+            const talk = document.getElementById('talkInput').value.trim();
+            const category = document.getElementById('categorySelect').value;
+            
+            if(!kanji || !hiragana) {
+                alert(currentMode === 'child' ? 'かんじとひらがなをいれてね' : '漢字とひらがなを入力してください');
+                return;
+            }
 
-            if(!lbl) return alert('カード名を入力してください');
-            if(!tempImg) return alert('画像を設定してください');
-            if(!tlk) tlk = lbl;
+            let imageData = null;
+            let emoji = null;
 
-            const newData = {
-                id: editingId || 'usr_' + Date.now(),
-                label: lbl,
-                talk: tlk,
-                category: cat,
-                image: tempImg,
-                pin: pin,
-                isDefault: editingId ? (cards.find(c=>c.id===editingId)?.isDefault||false) : false,
-                useCount: editingId ? (cards.find(c=>c.id===editingId)?.useCount||0) : 0,
-                timestamp: Date.now()
-            };
+            if(currentImageType === 'emoji') {
+                emoji = document.getElementById('emojiInput').value;
+            } else if(currentImageType === 'file') {
+                const img = document.getElementById('previewImg').src;
+                if(img && img.startsWith('data:')) {
+                    imageData = img;
+                }
+            } else if(currentImageType === 'canvas') {
+                imageData = canvas.toDataURL();
+            }
 
-            if(editingId) {
-                cards = cards.map(c => c.id === editingId ? newData : c);
+            const editId = document.getElementById('editCardId').value;
+            
+            if(editId) {
+                const card = cards.find(c => c.id === editId);
+                if(card) {
+                    card.kanji = kanji;
+                    card.hiragana = hiragana;
+                    card.talk = talk || kanji;
+                    card.category = category;
+                    card.imageType = currentImageType;
+                    if(currentImageType === 'emoji') card.emoji = emoji;
+                    else if(currentImageType === 'file') card.imageData = imageData;
+                    else if(currentImageType === 'canvas') card.canvasData = imageData;
+                    
+                    showToast('✏️ カードを編集しました');
+                }
             } else {
-                cards.push(newData);
+                const newCard = {
+                    id: 'card_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                    kanji, hiragana,
+                    talk: talk || kanji,
+                    category,
+                    imageType: currentImageType,
+                    pinned: false,
+                    usageCount: 0,
+                    timestamp: Date.now()
+                };
+                
+                if(currentImageType === 'emoji') newCard.emoji = emoji;
+                else if(currentImageType === 'file') newCard.imageData = imageData;
+                else if(currentImageType === 'canvas') newCard.canvasData = imageData;
+                
+                cards.push(newCard);
+                showToast('✨ カードを作成しました');
             }
+
             saveData();
-            closeModal();
-            refreshUI();
-            showToast('✅ 保存しました');
+            renderCards();
+            closeCardModal();
         }
 
-        function deleteCard() {
-            if(confirm('このカードを削除しますか？')) {
-                cards = cards.filter(c => c.id !== editingId);
-                saveData();
-                closeModal();
-                refreshUI();
-                showToast('🗑️ 削除しました');
+        function editCard(cardId) {
+            const card = cards.find(c => c.id === cardId);
+            if(!card) return;
+
+            document.getElementById('editCardId').value = card.id;
+            document.getElementById('kanjiInput').value = card.kanji;
+            document.getElementById('hiraganaInput').value = card.hiragana;
+            document.getElementById('talkInput').value = card.talk !== card.kanji ? card.talk : '';
+            document.getElementById('categorySelect').innerHTML = categories.map(c => 
+                `<option value="${c.id}" ${c.id === card.category ? 'selected' : ''}>${c.emoji} ${currentMode === 'child' ? c.nameChild : c.name}</option>`
+            ).join('');
+
+            selectImageType(card.imageType || 'emoji');
+            
+            if(card.imageType === 'emoji') {
+                document.getElementById('emojiInput').value = card.emoji || '😊';
+            } else if(card.imageType === 'file' && card.imageData) {
+                document.getElementById('previewImg').src = card.imageData;
+                document.getElementById('imagePreview').classList.remove('hidden');
+            } else if(card.imageType === 'canvas' && card.canvasData) {
+                const img = new Image();
+                img.onload = () => {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0);
+                };
+                img.src = card.canvasData;
             }
+
+            document.getElementById('cardModal').classList.remove('hidden');
         }
 
-        // --- エクスポート／インポート ---
-        function exportData() {
+        function deleteCard(cardId) {
+            if(!confirm(currentMode === 'child' ? 'ほんとうにけすの？' : '本当に削除しますか？')) return;
+            cards = cards.filter(c => c.id !== cardId);
+            saveData();
+            renderCards();
+            showToast('🗑️ カードを削除しました');
+        }
+
+        // データエクスポート/インポート
+        function openExportModal() {
             document.getElementById('settingsPanel').classList.add('hidden');
+            document.getElementById('exportCategorySelect').innerHTML = categories.map(c => 
+                `<option value="${c.id}">${c.emoji} ${currentMode === 'child' ? c.nameChild : c.name}</option>`
+            ).join('');
             document.getElementById('exportModal').classList.remove('hidden');
         }
 
@@ -842,32 +1044,19 @@
             document.getElementById('exportModal').classList.add('hidden');
         }
 
-        function renderExportCategorySelect() {
-            const sel = document.getElementById('exportCategorySelect');
-            sel.innerHTML = categories.map(c => 
-                `<option value="${c.id}">${c.label}</option>`
-            ).join('');
-        }
-
-        function executeExport() {
-            const type = document.querySelector('input[name="exportType"]:checked').value;
+        function exportCards(type) {
             let exportCards = [];
-
             if(type === 'all') {
                 exportCards = cards;
-            } else if(type === 'custom') {
-                exportCards = cards.filter(c => !c.isDefault);
-            } else if(type === 'default') {
-                exportCards = cards.filter(c => c.isDefault);
             } else if(type === 'pinned') {
-                exportCards = cards.filter(c => c.pin);
+                exportCards = cards.filter(c => c.pinned);
             } else if(type === 'category') {
                 const catId = document.getElementById('exportCategorySelect').value;
                 exportCards = cards.filter(c => c.category === catId);
             }
 
             if(exportCards.length === 0) {
-                alert('エクスポートするカードがありません');
+                alert(currentMode === 'child' ? 'かーどがないよ' : 'エクスポートするカードがありません');
                 return;
             }
 
@@ -884,10 +1073,13 @@
             a.href = url;
             a.download = `pecs-cards-${type}-${Date.now()}.json`;
             a.click();
-            URL.revokeObjectURL(url);
-
-            closeExportModal();
-            showToast(`📦 ${exportCards.length}枚のカードをエクスポートしました`);
+            
+            // エクスポート完了を待ってからクリーンアップとメッセージ表示
+            setTimeout(() => {
+                URL.revokeObjectURL(url);
+                closeExportModal();
+                showToast(`📦 ${exportCards.length}${currentMode === 'child' ? 'まい' : '枚'}のカードをエクスポートしました`);
+            }, 100);
         }
 
         function importData() {
@@ -905,10 +1097,9 @@
                         throw new Error('無効なファイル形式');
                     }
                     
-                    const msg = `${data.cards.length}枚のカードをインポートしますか？\n\n※現在のデータは保持されます（重複カードは追加されます）`;
+                    const msg = `${data.cards.length}${currentMode === 'child' ? 'まい' : '枚'}のカードをインポートしますか？\n\n※現在のデータは保持されます（重複カードは追加されます）`;
                     if(!confirm(msg)) return;
 
-                    // カテゴリをマージ
                     if(data.categories && Array.isArray(data.categories)) {
                         data.categories.forEach(newCat => {
                             if(!categories.find(c => c.id === newCat.id)) {
@@ -917,7 +1108,6 @@
                         });
                     }
 
-                    // カードを追加（IDを新規生成して重複回避）
                     data.cards.forEach(card => {
                         cards.push({
                             ...card,
@@ -928,7 +1118,7 @@
 
                     saveData();
                     refreshUI();
-                    showToast(`✅ ${data.cards.length}枚のカードをインポートしました`);
+                    showToast(`✅ ${data.cards.length}${currentMode === 'child' ? 'まい' : '枚'}のカードをインポートしました`);
                 } catch(err) {
                     alert('インポートに失敗しました\n' + err.message);
                 }
@@ -938,18 +1128,30 @@
         }
 
         function resetData() {
-            if(confirm('すべてのデータを削除して初期化しますか？\n\n※この操作は取り消せません')) {
-                if(confirm('本当によろしいですか？')) {
+            if(confirm(currentMode === 'child' ? 'ぜんぶけすよ？' : 'すべてのデータを削除して初期化しますか？\n\n※この操作は取り消せません')) {
+                if(confirm(currentMode === 'child' ? 'ほんとうにいいの？' : '本当によろしいですか？')) {
                     localStorage.removeItem(DB_KEY);
                     location.reload();
                 }
             }
         }
 
-        // --- 音声再生 ---
+        function refreshUI() {
+            renderCategoryBar();
+            renderCards();
+            updateModeUI();
+        }
+
+        // 音声再生（PC版Chrome対応強化）
         function initSpeech() {
             if('speechSynthesis' in window) {
                 window.speechSynthesis.getVoices();
+                
+                if(window.speechSynthesis.getVoices().length > 0) {
+                    const wake = new SpeechSynthesisUtterance('');
+                    wake.volume = 0;
+                    window.speechSynthesis.speak(wake);
+                }
             }
         }
 
@@ -958,17 +1160,20 @@
 
             isSpeaking = true;
             const btn = document.getElementById('playBtn');
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span class="text-lg font-bold">準備中...</span>';
+            btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> <span class="text-lg font-bold">${currentMode === 'child' ? 'じゅんびちゅう...' : '準備中...'}</span>`;
             btn.classList.add('bg-gray-400');
             btn.classList.remove('bg-blue-600');
 
             window.speechSynthesis.cancel();
-            const wake = new SpeechSynthesisUtterance('');
+            
+            const wake = new SpeechSynthesisUtterance('あ');
+            wake.volume = 0;
+            wake.rate = 10;
             window.speechSynthesis.speak(wake);
 
             setTimeout(() => {
                 speakQueue(0);
-            }, 300);
+            }, 500);
         }
 
         function speakQueue(idx) {
@@ -1010,12 +1215,11 @@
                 el.classList.remove('playing-highlight')
             );
             const btn = document.getElementById('playBtn');
-            btn.innerHTML = '<i class="fas fa-volume-up text-2xl"></i> <span class="text-lg font-bold">おはなし</span>';
+            btn.innerHTML = `<i class="fas fa-volume-up text-2xl"></i> <span id="playBtnText" class="text-lg font-bold">おはなし</span>`;
             btn.classList.remove('bg-gray-400');
             btn.classList.add('bg-blue-600');
         }
 
-        // --- トースト通知 ---
         function showToast(msg) {
             const area = document.getElementById('toastArea');
             const el = document.createElement('div');
@@ -1024,6 +1228,11 @@
             area.appendChild(el);
             setTimeout(() => el.remove(), 3000);
         }
+
+        window.addEventListener('load', () => {
+            init();
+            initSpeech();
+        });
     </script>
 </body>
 </html>
