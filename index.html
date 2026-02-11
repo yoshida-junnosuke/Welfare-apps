@@ -293,11 +293,18 @@
                     <input type="text" id="kanjiInput" placeholder="例: トイレに行きたい" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500">
                 </div>
 
-                <!-- 読み上げ（ひらがな表示兼用） -->
+                <!-- ひらがな -->
                 <div>
-                    <label id="talkLabel" class="text-xs font-bold text-gray-600 mb-1 block">読み上げ（ひらがな表示）</label>
+                    <label id="hiraganaLabel" class="text-xs font-bold text-gray-600 mb-1 block">ひらがな</label>
+                    <input type="text" id="hiraganaInput" placeholder="例: といれにいきたい" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                    <p class="text-xs text-gray-400 mt-1">※子どもモードで表示される文字</p>
+                </div>
+
+                <!-- 読み上げ -->
+                <div>
+                    <label id="talkLabel" class="text-xs font-bold text-gray-600 mb-1 block">読み上げ</label>
                     <input type="text" id="talkInput" placeholder="例: といれにいきたいです" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500">
-                    <p class="text-xs text-gray-400 mt-1">※ひらがなモード表示と音声読み上げに使用されます</p>
+                    <p class="text-xs text-gray-400 mt-1">※音声で読み上げられる文字（ひらがな推奨）</p>
                 </div>
 
                 <!-- カテゴリ -->
@@ -562,7 +569,8 @@
             document.getElementById('fileText').textContent = isChild ? 'しゃしん' : '写真';
             document.getElementById('canvasText').textContent = isChild ? 'かく' : '描く';
             document.getElementById('kanjiLabel').textContent = isChild ? 'かんじ' : '漢字';
-            document.getElementById('talkLabel').textContent = isChild ? 'よみあげ（ひょうじ）' : '読み上げ（ひらがな表示）';
+            document.getElementById('hiraganaLabel').textContent = isChild ? 'ひらがな' : 'ひらがな';
+            document.getElementById('talkLabel').textContent = isChild ? 'よみあげ' : '読み上げ';
             document.getElementById('categoryLabel').textContent = isChild ? 'かてごり' : 'カテゴリ';
             document.getElementById('saveCardBtn').innerHTML = isChild ? '<i class="fas fa-save mr-2"></i>ほぞん' : '<i class="fas fa-save mr-2"></i>保存';
             
@@ -856,6 +864,7 @@
         function openCardModal() {
             document.getElementById('editCardId').value = '';
             document.getElementById('kanjiInput').value = '';
+            document.getElementById('hiraganaInput').value = '';
             document.getElementById('talkInput').value = '';
             document.getElementById('emojiInput').value = '😊';
             document.getElementById('categorySelect').innerHTML = categories.map(c => 
@@ -916,13 +925,19 @@
 
         function saveCard() {
             const kanji = document.getElementById('kanjiInput').value.trim();
+            const hiragana = document.getElementById('hiraganaInput').value.trim();
             const talk = document.getElementById('talkInput').value.trim();
             const category = document.getElementById('categorySelect').value;
             
-            if(!kanji || !talk) {
-                alert(currentMode === 'child' ? 'かんじとよみあげをいれてね' : '漢字と読み上げを入力してください');
+            if(!kanji) {
+                alert(currentMode === 'child' ? 'かんじをいれてね' : '漢字を入力してください');
                 return;
             }
+
+            // ひらがなが空なら漢字をコピー
+            const finalHiragana = hiragana || kanji;
+            // 読み上げが空ならひらがなをコピー
+            const finalTalk = talk || finalHiragana;
 
             let imageData = null;
             let emoji = null;
@@ -944,8 +959,8 @@
                 const card = cards.find(c => c.id === editId);
                 if(card) {
                     card.kanji = kanji;
-                    card.hiragana = talk; // talkをhiraganaとして保存
-                    card.talk = talk;
+                    card.hiragana = finalHiragana;
+                    card.talk = finalTalk;
                     card.category = category;
                     card.imageType = currentImageType;
                     if(currentImageType === 'emoji') card.emoji = emoji;
@@ -958,8 +973,8 @@
                 const newCard = {
                     id: 'card_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
                     kanji,
-                    hiragana: talk, // talkをhiraganaとして保存
-                    talk,
+                    hiragana: finalHiragana,
+                    talk: finalTalk,
                     category,
                     imageType: currentImageType,
                     pinned: false,
@@ -986,7 +1001,8 @@
 
             document.getElementById('editCardId').value = card.id;
             document.getElementById('kanjiInput').value = card.kanji;
-            document.getElementById('talkInput').value = card.talk || card.hiragana || '';
+            document.getElementById('hiraganaInput').value = card.hiragana || '';
+            document.getElementById('talkInput').value = card.talk || '';
             document.getElementById('categorySelect').innerHTML = categories.map(c => 
                 `<option value="${c.id}" ${c.id === card.category ? 'selected' : ''}>${c.emoji} ${currentMode === 'child' ? c.nameChild : c.name}</option>`
             ).join('');
