@@ -1143,24 +1143,24 @@
         }
 
         function playSentence() {
-            if(sentenceStrip.length === 0 || isSpeaking) return;
+            // 既に再生中なら停止
+            if(isSpeaking) {
+                stopSpeaking();
+                return;
+            }
+
+            if(sentenceStrip.length === 0) return;
 
             isSpeaking = true;
             const btn = document.getElementById('playBtn');
-            btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> <span class="text-lg font-bold">${currentMode === 'child' ? 'じゅんびちゅう...' : '準備中...'}</span>`;
-            btn.classList.add('bg-gray-400');
+            btn.innerHTML = `<i class="fas fa-stop-circle text-2xl"></i> <span class="text-lg font-bold">${currentMode === 'child' ? 'とめる' : '停止'}</span>`;
+            btn.classList.add('bg-red-600');
             btn.classList.remove('bg-blue-600');
 
             window.speechSynthesis.cancel();
             
-            const wake = new SpeechSynthesisUtterance('あ');
-            wake.volume = 0;
-            wake.rate = 10;
-            window.speechSynthesis.speak(wake);
-
-            setTimeout(() => {
-                speakQueue(0);
-            }, 100);
+            // ウォームアップなしで即座に開始
+            speakQueue(0);
         }
 
         function speakQueue(idx) {
@@ -1184,7 +1184,8 @@
 
             utterance.onend = () => {
                 if(stripCard) stripCard.classList.remove('playing-highlight');
-                setTimeout(() => speakQueue(idx + 1), 300);
+                // 次の単語へ即座に進む（遅延を最小化）
+                setTimeout(() => speakQueue(idx + 1), 100);
             };
 
             utterance.onerror = () => {
@@ -1203,7 +1204,7 @@
             );
             const btn = document.getElementById('playBtn');
             btn.innerHTML = `<i class="fas fa-volume-up text-2xl"></i> <span id="playBtnText" class="text-lg font-bold">おはなし</span>`;
-            btn.classList.remove('bg-gray-400');
+            btn.classList.remove('bg-red-600', 'bg-gray-400');
             btn.classList.add('bg-blue-600');
         }
 
